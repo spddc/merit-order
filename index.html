@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Merit Order – How Energy Prices Work</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, sans-serif;
+    background: #fff;
+    color: #1B2A4A;
+    padding: 24px 20px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .section-label {
+    font-size: 11px; color: #94A3B8; font-weight: 700;
+    letter-spacing: 2px; margin-bottom: 4px;
+  }
+  h1 {
+    font-size: 22px; font-weight: 400; line-height: 1.35;
+    margin-bottom: 24px; color: #1B2A4A;
+  }
+  .chart-container {
+    background: #FAFBFC; border-radius: 8px;
+    padding: 12px 8px 0; margin-bottom: 24px;
+    overflow-x: auto;
+  }
+  .price-callout {
+    display: flex; align-items: center; gap: 16px;
+    padding: 12px 20px; background: #1B2A4A; border-radius: 8px;
+    margin-bottom: 24px; color: white;
+  }
+  .price-callout .price { font-size: 32px; font-weight: 700; }
+  .price-callout .desc { font-size: 13px; opacity: 0.8; }
+  .sliders-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+  }
+  .sliders-header h2 { font-size: 15px; font-weight: 700; }
+  .reset-btn {
+    font-size: 12px; color: #94A3B8; background: none;
+    border: 1px solid #E0E0E0; border-radius: 4px;
+    padding: 4px 12px; cursor: pointer;
+  }
+  .reset-btn:hover { background: #f5f5f5; }
+  .sliders-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px 32px;
+  }
+  @media (max-width: 600px) {
+    .sliders-grid { grid-template-columns: 1fr; }
+    h1 { font-size: 18px; }
+  }
+  .slider-group { margin-bottom: 16px; }
+  .slider-top {
+    display: flex; justify-content: space-between;
+    align-items: baseline; margin-bottom: 4px;
+  }
+  .slider-label { font-size: 14px; font-weight: 600; }
+  .slider-value { font-size: 13px; font-weight: 700; }
+  input[type="range"] {
+    width: 100%; height: 6px; cursor: pointer;
+    -webkit-appearance: none; appearance: none;
+    background: #E2E8F0; border-radius: 3px; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 18px; height: 18px; border-radius: 50%;
+    cursor: pointer; border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .slider-desc { font-size: 11px; color: #94A3B8; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<div class="section-label">OUR BUSINESS MODEL</div>
+<h1>Energy prices are determined by multiple factors spanning from<br>nuclear outages in France to heat waves in Turkey</h1>
+
+<div class="chart-container">
+  <svg id="chart" width="820" height="320"></svg>
+</div>
+
+<div class="price-callout">
+  <div class="price" id="priceDisplay">€80</div>
+  <div class="desc" id="priceDesc">Market price per MWh — set by the most expensive source needed to meet demand</div>
+</div>
+
+<div class="sliders-header">
+  <h2>What moves the price?</h2>
+  <button class="reset-btn" onclick="resetAll()">Reset</button>
+</div>
+
+<div class="sliders-grid">
+  <div class="slider-group">
+    <div class="slider-top">
+      <span class="slider-label">☀️ Weather conditions</span>
+      <span class="slider-value" id="windVal" style="color:#4A9B7F">0%</span>
+    </div>
+    <input type="range" id="windSlider" min="-60" max="80" step="5" value="0"
+      style="accent-color:#4A9B7F" oninput="update()">
+    <div class="slider-desc">More wind & sun → more renewable supply → lower prices</div>
+  </div>
+
+  <div class="slider-group">
+    <div class="slider-top">
+      <span class="slider-label">⛽ Fuel prices</span>
+      <span class="slider-value" id="fuelVal" style="color:#C4956A">0%</span>
+    </div>
+    <input type="range" id="fuelSlider" min="-40" max="100" step="5" value="0"
+      style="accent-color:#C4956A" oninput="update()">
+    <div class="slider-desc">Rising gas prices lift the cost of the marginal price setter</div>
+  </div>
+
+  <div class="slider-group">
+    <div class="slider-top">
+      <span class="slider-label">🏭 Consumption patterns</span>
+      <span class="slider-value" id="consVal" style="color:#6B8EAE">0%</span>
+    </div>
+    <input type="range" id="consSlider" min="-30" max="50" step="5" value="0"
+      style="accent-color:#6B8EAE" oninput="update()">
+    <div class="slider-desc">A cold snap or industrial peak increases demand</div>
+  </div>
+
+  <div class="slider-group">
+    <div class="slider-top">
+      <span class="slider-label">⚠️ Interruptions</span>
+      <span class="slider-value" id="intVal" style="color:#B85C5C">0%</span>
+    </div>
+    <input type="range" id="intSlider" min="0" max="80" step="5" value="0"
+      style="accent-color:#B85C5C" oninput="update()">
+    <div class="slider-desc">Nuclear outages in France remove cheap supply</div>
+  </div>
+</div>
+
+<script>
+const BASE = [
+  { name: "Renewables", cost: 5, capacity: 35, color: "#4A9B7F" },
+  { name: "Nuclear", cost: 25, capacity: 20, color: "#6B8EAE" },
+  { name: "Coal", cost: 55, capacity: 20, color: "#8C7A6B" },
+  { name: "Gas", cost: 80, capacity: 30, color: "#C4956A" },
+  { name: "Oil / Peak", cost: 120, capacity: 15, color: "#B85C5C" },
+];
+
+const margin = { top: 30, right: 30, bottom: 50, left: 60 };
+const svgW = 820, svgH = 320;
+const w = svgW - margin.left - margin.right;
+const h = svgH - margin.top - margin.bottom;
+const maxCost = 160;
+
+function fmt(v) { return (v > 0 ? "+" : "") + v + "%"; }
+
+function getSources(wind, fuel, interruption) {
+  return BASE.map(src => {
+    let capacity = src.capacity, cost = src.cost;
+    if (src.name === "Renewables") capacity = Math.max(5, src.capacity * (1 + wind / 100));
+    if (src.name === "Gas") cost = Math.max(10, src.cost * (1 + fuel / 100));
+    if (src.name === "Coal") cost = Math.max(10, src.cost * (1 + fuel / 150));
+    if (src.name === "Oil / Peak") cost = Math.max(10, src.cost * (1 + fuel / 120));
+    if (src.name === "Nuclear") capacity = Math.max(2, src.capacity * (1 - interruption / 100));
+    return { ...src, capacity: Math.round(capacity), cost: Math.round(cost) };
+  }).sort((a, b) => a.cost - b.cost);
+}
+
+function svgEl(tag, attrs, text) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
+function drawChart(sources, demand) {
+  const svg = document.getElementById("chart");
+  svg.innerHTML = "";
+
+  const g = svgEl("g", { transform: `translate(${margin.left},${margin.top})` });
+  svg.appendChild(g);
+
+  const totalCap = sources.reduce((s, src) => s + src.capacity, 0);
+  const xS = v => (v / totalCap) * w;
+  const yS = v => h - (v / maxCost) * h;
+
+  // Grid
+  [0, 40, 80, 120, 160].forEach(t => {
+    g.appendChild(svgEl("line", { x1: 0, y1: yS(t), x2: w, y2: yS(t), stroke: "#E8ECF0", "stroke-width": 1 }));
+    g.appendChild(svgEl("text", { x: -10, y: yS(t) + 4, "text-anchor": "end", "font-size": 11, fill: "#94A3B8" }, t));
+  });
+
+  // Bars
+  let cx = 0;
+  let marketPrice = 0;
+  let cumForPrice = 0;
+  sources.forEach(src => {
+    if (cumForPrice + src.capacity >= demand && marketPrice === 0) marketPrice = src.cost;
+    if (marketPrice === 0) cumForPrice += src.capacity;
+  });
+  if (marketPrice === 0) marketPrice = sources[sources.length - 1].cost;
+
+  cx = 0;
+  sources.forEach(src => {
+    const bx = xS(cx), bw = xS(src.capacity);
+    const by = yS(src.cost), bh = h - by;
+    const active = cx + src.capacity <= demand ? 1 : cx < demand ? 0.7 : 0.25;
+
+    g.appendChild(svgEl("rect", { x: bx, y: by, width: bw, height: bh, fill: src.color, opacity: active, rx: 1 }));
+    g.appendChild(svgEl("text", { x: bx + bw / 2, y: h + 20, "text-anchor": "middle", "font-size": 11, fill: "#666" }, src.name));
+
+    if (bh > 25) {
+      g.appendChild(svgEl("text", { x: bx + bw / 2, y: by + 16, "text-anchor": "middle", "font-size": 10, fill: "white", "font-weight": 600 }, "€" + src.cost));
+    }
+    cx += src.capacity;
+  });
+
+  // Demand line
+  const dx = Math.min(xS(demand), w);
+  g.appendChild(svgEl("line", { x1: dx, y1: -10, x2: dx, y2: h, stroke: "#1B2A4A", "stroke-width": 2.5 }));
+  g.appendChild(svgEl("text", { x: dx, y: -15, "text-anchor": "middle", "font-size": 12, fill: "#1B2A4A", "font-weight": 700 }, "Demand"));
+
+  // Price line
+  g.appendChild(svgEl("line", { x1: 0, y1: yS(marketPrice), x2: dx, y2: yS(marketPrice), stroke: "#1B2A4A", "stroke-width": 2, "stroke-dasharray": "6,4" }));
+
+  // Price badge
+  const badgeW = 55, badgeH = 24;
+  g.appendChild(svgEl("rect", { x: -58, y: yS(marketPrice) - 12, width: badgeW, height: badgeH, rx: 4, fill: "#1B2A4A" }));
+  g.appendChild(svgEl("text", { x: -30, y: yS(marketPrice) + 4, "text-anchor": "middle", "font-size": 11, fill: "white", "font-weight": 700 }, "€" + marketPrice));
+
+  // Axes
+  g.appendChild(svgEl("line", { x1: 0, y1: h, x2: w, y2: h, stroke: "#CBD5E1", "stroke-width": 1 }));
+  g.appendChild(svgEl("line", { x1: 0, y1: 0, x2: 0, y2: h, stroke: "#CBD5E1", "stroke-width": 1 }));
+
+  // Labels
+  g.appendChild(svgEl("text", { x: w / 2, y: h + 42, "text-anchor": "middle", "font-size": 11, fill: "#94A3B8" }, "Cumulative capacity (GW)"));
+  g.appendChild(svgEl("text", { x: -45, y: -10, "font-size": 11, fill: "#94A3B8" }, "€/MWh"));
+
+  // Update callout
+  document.getElementById("priceDisplay").textContent = "€" + marketPrice;
+  document.getElementById("priceDesc").textContent =
+    "Market price per MWh — set by the most expensive source needed to meet demand (" + demand + " GW)";
+}
+
+function update() {
+  const wind = +document.getElementById("windSlider").value;
+  const fuel = +document.getElementById("fuelSlider").value;
+  const cons = +document.getElementById("consSlider").value;
+  const intr = +document.getElementById("intSlider").value;
+
+  document.getElementById("windVal").textContent = fmt(wind);
+  document.getElementById("fuelVal").textContent = fmt(fuel);
+  document.getElementById("consVal").textContent = fmt(cons);
+  document.getElementById("intVal").textContent = fmt(intr);
+
+  const sources = getSources(wind, fuel, intr);
+  const demand = Math.max(20, Math.round(80 * (1 + cons / 100)));
+  drawChart(sources, demand);
+}
+
+function resetAll() {
+  document.getElementById("windSlider").value = 0;
+  document.getElementById("fuelSlider").value = 0;
+  document.getElementById("consSlider").value = 0;
+  document.getElementById("intSlider").value = 0;
+  update();
+}
+
+// Initial render
+update();
+</script>
+</body>
+</html>
